@@ -4,7 +4,7 @@ A Chrome extension that tracks VPIP, PFR, and 3-bet percentages for all players 
 
 ## Features
 - Observes player actions in real time
-- Lays the groundwork for tracking poker statistics (VPIP, PFR, 3-bet)
+- Lays the groundwork for tracking poker statistics (VPIP, PFR)
 
 ## Setup
 1. Clone or download this repository.
