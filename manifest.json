@@ -6,11 +6,11 @@
   "icons": { "48": "icon48.png", "128": "icon128.png" },
   "content_scripts": [
     {
-      "matches": ["https://pokernow.club/games/*"],
+      "matches": ["https://*.pokernow.club*"],
       "js": ["content.js"],
       "css": ["styles.css"],
       "run_at": "document_idle"
     }
   ],
-  "host_permissions": ["https://pokernow.club/games/*"]
+  "host_permissions": ["https://*.pokernow.club*"]
 }
