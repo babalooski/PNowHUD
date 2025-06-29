@@ -8,14 +8,17 @@ let perHandFlags = {}; // { playerName: { vpip: false, pfr: false } }
 
 // Helper: Get player name from a player element
 function getPlayerName(playerEl) {
-  return playerEl.querySelector('.table-player-name a')?.textContent.trim() || '';
+  const el = playerEl.querySelector('.table-player-name a');
+  if (!el) return null;
+  const name = el.textContent.trim();
+  return name || null;
 }
 
 // Display VPIP and PFR stats for each player
 function updatePlayerStatsDisplay() {
   document.querySelectorAll('.table-player').forEach(playerEl => {
     const name = getPlayerName(playerEl);
-    if (!playerStats[name] || playerStats[name].handsPlayed === 0) return;
+    if (!name || !playerStats[name] || playerStats[name].handsPlayed === 0) return;
 
     // Calculate percentages
     const vpipPct = ((playerStats[name].vpip / playerStats[name].handsPlayed) * 100).toFixed(1);
@@ -48,6 +51,7 @@ function detectNewHand() {
   isPreflop = true;
   playerElements.forEach(playerEl => {
     const name = getPlayerName(playerEl);
+    if (!name) return;
     if (!playerStats[name]) {
       playerStats[name] = { handsPlayed: 0, vpip: 0, pfr: 0 };
     }
@@ -81,7 +85,7 @@ function parsePlayerAction(node) {
   const text = node.textContent;
   if (!text) return;
   // Try to match "Name action ..."
-  const match = text.match(/^(\w+)\s+(raises|calls|bets|folds|checks)/i);
+  const match = text.match(/^([\w\s'-]+?)\s+(raises|calls|bets|folds|checks)/i);
   if (!match) return;
   const name = match[1];
   const action = match[2].toLowerCase();
