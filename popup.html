@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 300px;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            margin: 0;
+            font-size: 18px;
+        }
+        
+        .header p {
+            color: #7f8c8d;
+            margin: 5px 0 0 0;
+            font-size: 12px;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        
+        .button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        .button:hover {
+            background: #2980b9;
+        }
+        
+        .button.secondary {
+            background: #95a5a6;
+        }
+        
+        .button.secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        .button.danger {
+            background: #e74c3c;
+        }
+        
+        .button.danger:hover {
+            background: #c0392b;
+        }
+        
+        .stats-summary {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .stats-summary h3 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        
+        .checkbox {
+            margin-right: 8px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            text-align: center;
+        }
+        
+        .status.connected {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+        
+        .status.disconnected {
+            background: #fadbd8;
+            color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>PokerNow HUD</h1>
+        <p>Poker Statistics Tracker</p>
+    </div>
+    
+    <div id="status" class="status disconnected">
+        Not connected to PokerNow.club
+    </div>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="hudEnabled" class="checkbox" checked>
+                Enable HUD
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="autoSave" class="checkbox" checked>
+                Auto-save statistics
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="showHandCount" class="checkbox" checked>
+                Show hand count
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <button id="toggleHUD" class="button">Toggle HUD Visibility</button>
+        </div>
+        
+        <div class="control-group">
+            <button id="resetPosition" class="button secondary">Reset HUD Position</button>
+        </div>
+        
+        <div class="control-group">
+            <button id="clearStats" class="button danger">Clear All Statistics</button>
+        </div>
+    </div>
+    
+    <div class="stats-summary">
+        <h3>Session Summary</h3>
+        <div class="stat-item">
+            <span>Players Tracked:</span>
+            <span id="playersTracked">0</span>
+        </div>
+        <div class="stat-item">
+            <span>Total Hands:</span>
+            <span id="totalHands">0</span>
+        </div>
+        <div class="stat-item">
+            <span>Session Time:</span>
+            <span id="sessionTime">0m</span>
+        </div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>

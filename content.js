@@ -1,146 +1,351 @@
-// content.js
+// PokerNow HUD Content Script
+class PokerHUD {
+  constructor() {
+    this.players = new Map();
+    this.currentHand = 0;
+    this.gameState = {
+      preflop: false,
+      postflop: false,
+      handInProgress: false
+    };
+    this.hudElement = null;
+    this.isDragging = false;
+    this.dragOffset = { x: 0, y: 0 };
+    
+    this.init();
+  }
 
-// Track stats for each player
-const playerStats = {};
-let currentHandPlayers = new Set();
-let isPreflop = true;
-let perHandFlags = {}; // { playerName: { vpip: false, pfr: false } }
+  init() {
+    this.createHUD();
+    this.attachEventListeners();
+    this.startMonitoring();
+    this.loadStoredData();
+  }
 
-// Helper: Get player name from a player element
-function getPlayerName(playerEl) {
-  return playerEl.querySelector('.table-player-name a')?.textContent.trim() || '';
-}
+  createHUD() {
+    // Create main HUD container
+    this.hudElement = document.createElement('div');
+    this.hudElement.id = 'poker-hud';
+    this.hudElement.className = 'poker-hud-container';
+    
+    // Create header
+    const header = document.createElement('div');
+    header.className = 'poker-hud-header';
+    header.innerHTML = `
+      <span>Poker HUD</span>
+      <button class="hud-minimize" id="minimize-hud">−</button>
+      <button class="hud-close" id="close-hud">×</button>
+    `;
+    
+    // Create stats container
+    const statsContainer = document.createElement('div');
+    statsContainer.className = 'poker-hud-stats';
+    statsContainer.id = 'hud-stats';
+    
+    this.hudElement.appendChild(header);
+    this.hudElement.appendChild(statsContainer);
+    
+    // Add to page
+    document.body.appendChild(this.hudElement);
+    
+    // Load saved position
+    this.loadHUDPosition();
+  }
 
-// Display VPIP and PFR stats for each player
-function updatePlayerStatsDisplay() {
-  document.querySelectorAll('.table-player').forEach(playerEl => {
-    const name = getPlayerName(playerEl);
-    if (!playerStats[name] || playerStats[name].handsPlayed === 0) return;
+  attachEventListeners() {
+    const header = this.hudElement.querySelector('.poker-hud-header');
+    
+    // Drag functionality
+    header.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'BUTTON') return;
+      this.isDragging = true;
+      const rect = this.hudElement.getBoundingClientRect();
+      this.dragOffset = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+      document.addEventListener('mousemove', this.handleDrag);
+      document.addEventListener('mouseup', this.handleDragEnd);
+    });
 
-    // Calculate percentages
-    const vpipPct = ((playerStats[name].vpip / playerStats[name].handsPlayed) * 100).toFixed(1);
-    const pfrPct = ((playerStats[name].pfr / playerStats[name].handsPlayed) * 100).toFixed(1);
+    // Control buttons
+    document.getElementById('minimize-hud').addEventListener('click', () => {
+      this.toggleMinimize();
+    });
 
-    // Find or create the stat display element
-    let statEl = playerEl.querySelector('.pokernow-hud-stats');
-    if (!statEl) {
-      statEl = document.createElement('div');
-      statEl.className = 'pokernow-hud-stats';
-      // Style it (customize as you like)
-      statEl.style.fontSize = '12px';
-      statEl.style.color = '#FFD700';
-      statEl.style.background = 'rgba(0,0,0,0.6)';
-      statEl.style.padding = '2px 4px';
-      statEl.style.borderRadius = '4px';
-      statEl.style.marginTop = '2px';
-      playerEl.appendChild(statEl);
+    document.getElementById('close-hud').addEventListener('click', () => {
+      this.toggleVisibility();
+    });
+  }
+
+  handleDrag = (e) => {
+    if (!this.isDragging) return;
+    
+    const x = e.clientX - this.dragOffset.x;
+    const y = e.clientY - this.dragOffset.y;
+    
+    this.hudElement.style.left = x + 'px';
+    this.hudElement.style.top = y + 'px';
+  }
+
+  handleDragEnd = () => {
+    this.isDragging = false;
+    document.removeEventListener('mousemove', this.handleDrag);
+    document.removeEventListener('mouseup', this.handleDragEnd);
+    this.saveHUDPosition();
+  }
+
+  startMonitoring() {
+    // Monitor chat for game actions
+    this.observeGameChat();
+    
+    // Monitor player list changes
+    this.observePlayerList();
+    
+    // Periodic updates
+    setInterval(() => {
+      this.updateHUD();
+    }, 1000);
+  }
+
+  observeGameChat() {
+    const chatContainer = document.querySelector('.messages-container');
+    if (!chatContainer) {
+      setTimeout(() => this.observeGameChat(), 1000);
+      return;
     }
-    statEl.textContent = `VPIP: ${vpipPct}% | PFR: ${pfrPct}%`;
-  });
-}
 
-// Helper: Detect new hand start
-function detectNewHand() {
-  // When a new hand starts, reset currentHandPlayers and increment hands played
-  const playerElements = document.querySelectorAll('.table-player');
-  currentHandPlayers = new Set();
-  perHandFlags = {};
-  isPreflop = true;
-  playerElements.forEach(playerEl => {
-    const name = getPlayerName(playerEl);
-    if (!playerStats[name]) {
-      playerStats[name] = { handsPlayed: 0, vpip: 0, pfr: 0 };
-    }
-    playerStats[name].handsPlayed++;
-    currentHandPlayers.add(name);
-    perHandFlags[name] = { vpip: false, pfr: false };
-  });
-  updatePlayerStatsDisplay();
-}
-
-// Helper: Detect when the flop is dealt (end of preflop)
-function detectFlopDealt(node) {
-  // Look for a message or DOM change indicating the flop is dealt
-  // Example: chat message like "Flop: ..." or community cards update
-  const text = node.textContent || '';
-  if (/flop:/i.test(text)) {
-    isPreflop = false;
-  }
-  // Or, if community cards are revealed
-  if (node.classList && node.classList.contains('table-cards')) {
-    const cardEls = node.querySelectorAll('.card-container');
-    if (cardEls.length >= 3) {
-      isPreflop = false;
-    }
-  }
-}
-
-// Helper: Parse player action from action log node
-function parsePlayerAction(node) {
-  if (!isPreflop) return;
-  const text = node.textContent;
-  if (!text) return;
-  // Try to match "Name action ..."
-  const match = text.match(/^(\w+)\s+(raises|calls|bets|folds|checks)/i);
-  if (!match) return;
-  const name = match[1];
-  const action = match[2].toLowerCase();
-  if (!playerStats[name] || !perHandFlags[name]) return;
-  // Only count actions for players in the current hand
-  if (!currentHandPlayers.has(name)) return;
-  // VPIP: first call/raise/bet preflop
-  if (["calls", "raises", "bets"].includes(action) && !perHandFlags[name].vpip) {
-    playerStats[name].vpip++;
-    perHandFlags[name].vpip = true;
-    updatePlayerStatsDisplay();
-  }
-  // PFR: first raise preflop
-  if (action === "raises" && !perHandFlags[name].pfr) {
-    playerStats[name].pfr++;
-    perHandFlags[name].pfr = true;
-    updatePlayerStatsDisplay();
-  }
-}
-
-// Set up MutationObserver on the main game container
-window.addEventListener('load', () => {
-  const mainContainer = document.getElementById('main-container');
-  if (mainContainer) {
-    const observer = new MutationObserver(mutations => {
-      mutations.forEach(mutation => {
-        mutation.addedNodes.forEach(node => {
-          if (node.nodeType === 1) {
-            // Detect new hand start (look for a new dealer button or similar event)
-            if (node.querySelector && node.querySelector('.dealer-button-ctn')) {
-              detectNewHand();
-            }
-            // Detect when the flop is dealt
-            detectFlopDealt(node);
-            // Detect player actions in action log/chat
-            if (node.classList && node.classList.contains('chat-message')) {
-              parsePlayerAction(node);
-            }
-            // Some sites use a log area, so check children too
-            node.querySelectorAll && node.querySelectorAll('.chat-message').forEach(parsePlayerAction);
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === 1 && node.classList.contains('message')) {
+            this.parseGameMessage(node);
           }
         });
       });
     });
-    observer.observe(mainContainer, { childList: true, subtree: true });
-  }
-});
 
-// Helper: Get all player names from the table (update selector if needed)
-function getPlayerNames() {
-  return Array.from(document.querySelectorAll('.player-name')).map(el => el.textContent.trim());
+    observer.observe(chatContainer, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  observePlayerList() {
+    const gameContainer = document.querySelector('.game-container');
+    if (!gameContainer) {
+      setTimeout(() => this.observePlayerList(), 1000);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      this.updatePlayerList();
+    });
+
+    observer.observe(gameContainer, {
+      childList: true,
+      subtree: true,
+      attributes: true
+    });
+  }
+
+  parseGameMessage(messageNode) {
+    const messageText = messageNode.textContent.toLowerCase();
+    
+    // Detect hand start
+    if (messageText.includes('hand #')) {
+      this.currentHand++;
+      this.gameState.handInProgress = true;
+      this.gameState.preflop = true;
+      this.gameState.postflop = false;
+      this.resetHandTracking();
+    }
+    
+    // Detect preflop actions
+    if (this.gameState.preflop) {
+      this.parsePreFlopAction(messageText);
+    }
+    
+    // Detect flop
+    if (messageText.includes('flop')) {
+      this.gameState.preflop = false;
+      this.gameState.postflop = true;
+    }
+    
+    // Detect hand end
+    if (messageText.includes('wins') || messageText.includes('collected')) {
+      this.gameState.handInProgress = false;
+      this.finalizeHandStats();
+    }
+  }
+
+  parsePreFlopAction(messageText) {
+    // Parse different actions
+    const playerNameMatch = messageText.match(/(\w+)\s+(calls|raises|folds|checks)/);
+    if (!playerNameMatch) return;
+
+    const playerName = playerNameMatch[1];
+    const action = playerNameMatch[2];
+
+    if (!this.players.has(playerName)) {
+      this.players.set(playerName, {
+        handsPlayed: 0,
+        vpipHands: 0,
+        pfrHands: 0,
+        threeBetHands: 0,
+        vpip: 0,
+        pfr: 0,
+        threeBet: 0
+      });
+    }
+
+    const player = this.players.get(playerName);
+    
+    // Track VPIP (any voluntary money put in pot preflop)
+    if (action === 'calls' || action === 'raises') {
+      player.vpipHands++;
+    }
+    
+    // Track PFR (preflop raise)
+    if (action === 'raises') {
+      player.pfrHands++;
+    }
+    
+    // Track 3-bet (need more context for this)
+    // This would require more sophisticated parsing
+  }
+
+  updatePlayerList() {
+    // Get current players from the game UI
+    const playerElements = document.querySelectorAll('.player-name');
+    const currentPlayers = new Set();
+    
+    playerElements.forEach(element => {
+      const playerName = element.textContent.trim();
+      if (playerName) {
+        currentPlayers.add(playerName);
+        
+        if (!this.players.has(playerName)) {
+          this.players.set(playerName, {
+            handsPlayed: 0,
+            vpipHands: 0,
+            pfrHands: 0,
+            threeBetHands: 0,
+            vpip: 0,
+            pfr: 0,
+            threeBet: 0
+          });
+        }
+      }
+    });
+  }
+
+  resetHandTracking() {
+    // Reset hand-specific tracking
+    this.players.forEach(player => {
+      player.handsPlayed++;
+    });
+  }
+
+  finalizeHandStats() {
+    // Calculate percentages
+    this.players.forEach(player => {
+      if (player.handsPlayed > 0) {
+        player.vpip = ((player.vpipHands / player.handsPlayed) * 100).toFixed(1);
+        player.pfr = ((player.pfrHands / player.handsPlayed) * 100).toFixed(1);
+        player.threeBet = ((player.threeBetHands / player.handsPlayed) * 100).toFixed(1);
+      }
+    });
+    
+    this.savePlayerStats();
+  }
+
+  updateHUD() {
+    const statsContainer = document.getElementById('hud-stats');
+    if (!statsContainer) return;
+
+    let html = '';
+    
+    if (this.players.size === 0) {
+      html = '<div class="no-data">No player data yet. Play some hands!</div>';
+    } else {
+      this.players.forEach((stats, playerName) => {
+        html += `
+          <div class="player-stats">
+            <span class="player-name">${playerName}</span>
+            <span class="stats-line">
+              VPIP|${stats.vpip}% PFR|${stats.pfr}% 3!|${stats.threeBet}% (${stats.handsPlayed} hands)
+            </span>
+          </div>
+        `;
+      });
+    }
+    
+    statsContainer.innerHTML = html;
+  }
+
+  toggleMinimize() {
+    const statsContainer = document.getElementById('hud-stats');
+    if (statsContainer.style.display === 'none') {
+      statsContainer.style.display = 'block';
+    } else {
+      statsContainer.style.display = 'none';
+    }
+  }
+
+  toggleVisibility() {
+    this.hudElement.style.display = this.hudElement.style.display === 'none' ? 'block' : 'none';
+  }
+
+  saveHUDPosition() {
+    const rect = this.hudElement.getBoundingClientRect();
+    chrome.storage.local.set({
+      hudPosition: {
+        x: rect.left,
+        y: rect.top
+      }
+    });
+  }
+
+  loadHUDPosition() {
+    chrome.storage.local.get(['hudPosition'], (result) => {
+      if (result.hudPosition) {
+        this.hudElement.style.left = result.hudPosition.x + 'px';
+        this.hudElement.style.top = result.hudPosition.y + 'px';
+      } else {
+        // Default position
+        this.hudElement.style.left = '20px';
+        this.hudElement.style.top = '20px';
+      }
+    });
+  }
+
+  savePlayerStats() {
+    const statsData = {};
+    this.players.forEach((stats, playerName) => {
+      statsData[playerName] = stats;
+    });
+    
+    chrome.storage.local.set({ playerStats: statsData });
+  }
+
+  loadStoredData() {
+    chrome.storage.local.get(['playerStats'], (result) => {
+      if (result.playerStats) {
+        Object.entries(result.playerStats).forEach(([playerName, stats]) => {
+          this.players.set(playerName, stats);
+        });
+        this.updateHUD();
+      }
+    });
+  }
 }
 
-// Helper: Parse player actions from DOM nodes
-function parseAction(nodes) {
-  nodes.forEach(node => {
-    // Example: parse the text for player actions
-    // let text = node.textContent;
-    // TODO: Extract player name and action from text
-    // Example: if (text.includes('raises')) { ... }
+// Initialize HUD when page loads
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    new PokerHUD();
   });
-} 
+} else {
+  new PokerHUD();
+}

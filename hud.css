@@ -1,0 +1,162 @@
+/* PokerNow HUD Styles */
+.poker-hud-container {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid #333;
+    border-radius: 8px;
+    font-family: 'Arial', sans-serif;
+    font-size: 12px;
+    color: #fff;
+    z-index: 10000;
+    min-width: 280px;
+    max-width: 400px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    user-select: none;
+    backdrop-filter: blur(5px);
+  }
+  
+  .poker-hud-header {
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    padding: 8px 12px;
+    border-radius: 8px 8px 0 0;
+    cursor: move;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    font-size: 13px;
+  }
+  
+  .poker-hud-header:hover {
+    background: linear-gradient(135deg, #34495e, #2c3e50);
+  }
+  
+  .hud-minimize,
+  .hud-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 8px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+  }
+  
+  .hud-minimize:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .hud-close:hover {
+    background: rgba(255, 0, 0, 0.3);
+  }
+  
+  .poker-hud-stats {
+    padding: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  
+  .poker-hud-stats::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .poker-hud-stats::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+  }
+  
+  .poker-hud-stats::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+  }
+  
+  .player-stats {
+    margin-bottom: 8px;
+    padding: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    border-left: 3px solid #3498db;
+  }
+  
+  .player-name {
+    display: block;
+    font-weight: bold;
+    color: #3498db;
+    margin-bottom: 2px;
+    font-size: 13px;
+  }
+  
+  .stats-line {
+    display: block;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #ecf0f1;
+    letter-spacing: 0.5px;
+  }
+  
+  .no-data {
+    text-align: center;
+    color: #7f8c8d;
+    font-style: italic;
+    padding: 20px;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .poker-hud-container {
+      min-width: 260px;
+      font-size: 11px;
+    }
+    
+    .poker-hud-header {
+      font-size: 12px;
+    }
+    
+    .stats-line {
+      font-size: 10px;
+    }
+  }
+  
+  /* Animation for smooth transitions */
+  .poker-hud-container {
+    transition: opacity 0.3s ease;
+  }
+  
+  .player-stats {
+    transition: background-color 0.2s ease;
+  }
+  
+  .player-stats:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  
+  /* Highlight active players */
+  .player-stats.active {
+    border-left-color: #2ecc71;
+  }
+  
+  .player-stats.active .player-name {
+    color: #2ecc71;
+  }
+  
+  /* Color coding for different stat ranges */
+  .stats-high {
+    color: #e74c3c;
+  }
+  
+  .stats-medium {
+    color: #f39c12;
+  }
+  
+  .stats-low {
+    color: #2ecc71;
+  }

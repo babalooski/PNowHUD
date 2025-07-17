@@ -1,16 +1,31 @@
+
 {
   "manifest_version": 3,
-  "name": "PokerNow HUD – VPIP & PFR",
+  "name": "PokerNow HUD",
   "version": "1.0",
-  "description": "Shows VPIP and PFR under each player on PokerNow.club.",
-  "icons": { "48": "icon48.png", "128": "icon128.png" },
+  "description": "Poker HUD for PokerNow.club with VPIP, PFR, and 3-bet tracking",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
   "content_scripts": [
     {
-      "matches": ["https://*.pokernow.club/*"],
+      "matches": ["https://www.pokernow.club/*"],
       "js": ["content.js"],
-      "css": ["styles.css"],
-      "run_at": "document_idle"
+      "css": ["hud.css"],
+      "run_at": "document_end"
     }
   ],
-  "host_permissions": ["https://*.pokernow.club/*"]
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "PokerNow HUD"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
 }
