@@ -69,11 +69,11 @@ function checkConnectionStatus() {
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
         const statusElement = document.getElementById('status');
         
-        if (tabs[0] && tabs[0].url && tabs[0].url.includes('pokernow.club')) {
-            statusElement.textContent = 'Connected to PokerNow.club';
+        if (tabs[0] && tabs[0].url && tabs[0].url.includes('pokernow.club/games/')) {
+            statusElement.textContent = 'Connected to a PokerNow table';
             statusElement.className = 'status connected';
         } else {
-            statusElement.textContent = 'Not connected to PokerNow.club';
+            statusElement.textContent = 'Not on a PokerNow table (pokernow.club/games/...)';
             statusElement.className = 'status disconnected';
         }
     });
@@ -106,7 +106,7 @@ function updateSessionTime() {
 
 function sendMessageToContentScript(message) {
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-        if (tabs[0] && tabs[0].url && tabs[0].url.includes('pokernow.club')) {
+        if (tabs[0] && tabs[0].url && tabs[0].url.includes('pokernow.club/games/')) {
             chrome.tabs.sendMessage(tabs[0].id, message, function(response) {
                 if (chrome.runtime.lastError) {
                     console.log('Error sending message:', chrome.runtime.lastError);

@@ -6,11 +6,18 @@
   "description": "Poker HUD for PokerNow.club with VPIP, PFR, and 3-bet tracking",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "scripting",
+    "tabs",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://www.pokernow.club/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://www.pokernow.club/*"],
+      "matches": ["https://www.pokernow.club/games/*"],
       "js": ["content.js"],
       "css": ["hud.css"],
       "run_at": "document_end"
@@ -24,7 +31,6 @@
     "default_title": "PokerNow HUD"
   },
   "icons": {
-    "16": "icon16.png",
     "48": "icon48.png",
     "128": "icon128.png"
   }

@@ -18,7 +18,7 @@ chrome.runtime.onInstalled.addListener(() => {
   
   // Handle extension icon click
   chrome.action.onClicked.addListener((tab) => {
-    if (tab.url.includes('pokernow.club')) {
+    if (tab.url.includes('pokernow.club/games/')) {
       // Toggle HUD visibility
       chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -30,7 +30,7 @@ chrome.runtime.onInstalled.addListener(() => {
         type: 'basic',
         iconUrl: 'icon48.png',
         title: 'PokerNow HUD',
-        message: 'Please navigate to PokerNow.club to use the HUD'
+        message: 'Open a table at PokerNow (pokernow.club/games/...) to use the HUD'
       });
     }
   });
@@ -92,7 +92,7 @@ chrome.runtime.onInstalled.addListener(() => {
   
   // Handle tab updates to inject HUD when navigating to PokerNow
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete' && tab.url && tab.url.includes('pokernow.club')) {
+    if (changeInfo.status === 'complete' && tab.url && tab.url.includes('pokernow.club/games/')) {
       // Ensure content script is loaded
       chrome.scripting.executeScript({
         target: { tabId: tabId },
