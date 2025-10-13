@@ -1,37 +1,23 @@
-
 {
-  "manifest_version": 3,
-  "name": "PokerNow HUD",
-  "version": "1.0",
-  "description": "Poker HUD for PokerNow.club with VPIP, PFR, and 3-bet tracking",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "scripting",
-    "tabs",
-    "alarms",
-    "notifications"
-  ],
-  "host_permissions": [
-    "https://www.pokernow.club/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": ["https://www.pokernow.club/games/*"],
-      "js": ["content.js"],
-      "css": ["hud.css"],
-      "run_at": "document_end"
-    }
-  ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "PokerNow HUD"
-  },
-  "icons": {
-    "48": "icon48.png",
-    "128": "icon128.png"
-  }
+	"manifest_version": 3,
+	"name": "Pokernow HUD",
+	"version": "10.1",
+	"permissions": ["storage"],
+	"background": {
+	  "service_worker": "serviceWorker.js"
+	},
+	
+	"icons": { "16": "images/icon16.png",
+           "48": "images/icon48.png",
+          "128": "images/icon128.png" },
+
+	"content_scripts": [
+		{
+			"matches": ["https://www.pokernow.club/games/*"],
+			"js": ["thirdParty/jquery.min.js", "content.js"]
+		}
+	],
+	"action": {
+		"default_popup": "popup.html"
+	}
 }
