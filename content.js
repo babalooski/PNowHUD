@@ -5,6 +5,22 @@
 
 // Modern ES6+ Classes with proper error handling and async/await
 
+function normalizePlayerName(rawName = '') {
+    return String(rawName)
+        .replace(/[★⭐♛👑]/g, '')
+        .replace(/\u00a0/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replaceAll(' ', '__')
+        .replaceAll('(', '--')
+        .replaceAll(')', '--');
+}
+
+function extractQuotedPlayerName(line = '') {
+    const match = String(line).match(/"([^"]+)"/);
+    return match ? normalizePlayerName(match[1]) : '';
+}
+
 class Player {
     constructor(username, x, y, height, fontSize, seat, userID = null) {
         this.username = username;
@@ -20,29 +36,29 @@ class Player {
     // Static method to create player from DOM element
     static fromDOMElement(playerElement, seatIndex) {
         try {
-            const nameDiv = playerElement.querySelector('.table-player-name')?.children[0];
-            if (!nameDiv) return null;
+            const nameContainer = playerElement.querySelector('.table-player-name');
+            if (!nameContainer) return null;
 
-            // Extract clean username first
-            let cleanUsername = nameDiv.textContent || nameDiv.innerText || '';
-            cleanUsername = cleanUsername.trim();
-            
-            // Also get the processed version for stats lookup
-            const processedUsername = nameDiv.innerHTML
-                .replaceAll(' ', '__')
-                .replaceAll('(', '-op-')
-                .replaceAll(')', '-cp-')
-                .replaceAll('&amp;', '&')
-                .replaceAll('&lt;', '<')
-                .replaceAll('&gt;', '>')
-                .replaceAll('"', '-dq-');
+            // Premium tables render badges before the name, so read the anchor text first.
+            const nameLink = nameContainer.querySelector('a');
+            let rawUsername = nameLink?.textContent || nameLink?.innerText || '';
+
+            if (!rawUsername || !rawUsername.trim()) {
+                const nameClone = nameContainer.cloneNode(true);
+                nameClone.querySelectorAll('svg, img, [class*="premium"], [class*="badge"], .player-badges').forEach((node) => node.remove());
+                rawUsername = nameClone.textContent || nameClone.innerText || '';
+            }
+
+            const cleanUsername = normalizePlayerName(rawUsername);
+            if (!cleanUsername) return null;
 
 
             const styles = window.getComputedStyle(playerElement);
             const x = styles.getPropertyValue('left');
             const y = styles.getPropertyValue('top');
             const height = styles.getPropertyValue('height');
-            const fontSize = window.getComputedStyle(nameDiv).getPropertyValue('font-size');
+            const fontSource = nameLink || nameContainer;
+            const fontSize = window.getComputedStyle(fontSource).getPropertyValue('font-size');
             
             const isAway = playerElement.querySelector('.standing-up') !== null || 
                           playerElement.querySelector('.waiting-next-hand') !== null;
@@ -365,13 +381,19 @@ class HUD {
                 const showingHUD = await this.settings.checkIfShowingHUD();
                 if (showingHUD) {
                     // Update stats from storage first
-                    await getStats(this.aggregator);
+                    const statsLoaded = await getStats(this.aggregator);
+                    if (!statsLoaded) {
+                        return;
+                    }
                     this.initializeHUD();
                 } else {
                     this.clearDisplay();
                 }
                 this.HUDloop(iteration + 1);
             } catch (error) {
+                if (recoverFromInvalidExtensionContext(error)) {
+                    return;
+                }
                 console.error('Error in HUD loop:', error);
                 this.HUDloop(iteration + 1);
             }
@@ -545,17 +567,11 @@ class HandBuilder {
     }
 
     removeNameSpecialCharacters(line) {
-        console.log('Line:', line);
-        if (line.includes('@')) {
-            const player = line.split('"')[1].split('@')[0];
-            const cleanPlayer = player.substring(0, player.length - 1);
-            const spacelessPlayer = cleanPlayer.replaceAll(' ', '__');
-            const parenthasislessPlayer = spacelessPlayer
-                .replaceAll('(', '--')
-                .replaceAll(')', '--');
-            return line.replace(cleanPlayer, parenthasislessPlayer);
+        if (!line || typeof line !== 'string') {
+            return line;
         }
-        return line;
+
+        return line.replace(/"([^"]+)"/g, (_, playerName) => `"${normalizePlayerName(playerName)}"`);
     }
 
     convertToDonkhouseFormat(handLines) {
@@ -566,13 +582,14 @@ class HandBuilder {
             // console.log('Line:', line);
             let processedLine = this.removeNameSpecialCharacters(line);
             console.log('Processed line:', processedLine);
-            let player = processedLine.split(' ')[0].split('"')[1];
+            let player = extractQuotedPlayerName(processedLine);
             
             if (processedLine.includes('starting hand')) {
                 if (processedLine.includes('dead button')) {
                     dealer = 'dead button';
                 } else {
-                    dealer = processedLine.split('dealer: ')[1].split(' ')[0].split('"')[1];
+                    const dealerMatch = processedLine.match(/dealer:\s*"([^"]+)"/);
+                    dealer = dealerMatch ? normalizePlayerName(dealerMatch[1]) : '';
                 }
             }
             
@@ -587,12 +604,13 @@ class HandBuilder {
                 
                 for (const stackLine of stackLines) {
                     const processedStackLine = this.removeNameSpecialCharacters(stackLine);
-                    player = processedStackLine.split(' ')[1].split('"')[1];
-                    const stack = processedStackLine.split('(')[1].replace(')', '');
+                    player = extractQuotedPlayerName(processedStackLine);
+                    const stackMatch = processedStackLine.match(/\(([^)]+)\)/);
+                    const stack = stackMatch ? stackMatch[1] : '';
                     translatedStackLines.push(`${player} (${stack}, [position])`);
                 }
                 
-                if (dealer !== 'dead button') {
+                if (dealer && dealer !== 'dead button') {
                     while (translatedStackLines[translatedStackLines.length - 1].split(' ')[0] !== dealer) {
                         const firstElement = translatedStackLines[0];
                         translatedStackLines.shift();
@@ -661,28 +679,57 @@ class HandBuilder {
     }
 
     extractLastHand(jsonLog) {
-        let handStart, handEnd;
-        
-        for (let i = 0; i < Object.keys(jsonLog.logs).length; i++) {
-            const line = jsonLog.logs[i].msg;
+        if (!jsonLog || !Array.isArray(jsonLog.logs) || jsonLog.logs.length === 0) {
+            return [];
+        }
+
+        const logs = [...jsonLog.logs].sort((a, b) => {
+            const aTime = Number(a?.created_at) || 0;
+            const bTime = Number(b?.created_at) || 0;
+            return aTime - bTime;
+        });
+
+        let handEnd = -1;
+        let targetHandNumber = null;
+
+        for (let i = logs.length - 1; i >= 0; i--) {
+            const line = logs[i]?.msg || '';
             if (line.includes('ending hand #')) {
                 handEnd = i;
+                const parsedHandNumber = parseInt(line.split('#')[1], 10);
+                targetHandNumber = Number.isNaN(parsedHandNumber) ? null : parsedHandNumber;
+                break;
             }
-            if (handEnd !== undefined && line.includes('starting hand #')) {
+        }
+
+        if (handEnd === -1) {
+            return [];
+        }
+
+        let handStart = -1;
+        for (let i = handEnd; i >= 0; i--) {
+            const line = logs[i]?.msg || '';
+            if (!line.includes('starting hand #')) {
+                continue;
+            }
+
+            if (targetHandNumber !== null) {
+                const parsedHandNumber = parseInt(line.split('#')[1], 10);
+                if (!Number.isNaN(parsedHandNumber) && parsedHandNumber === targetHandNumber) {
+                    handStart = i;
+                    break;
+                }
+            } else {
                 handStart = i;
                 break;
             }
         }
-        
-        const handLines = [];
-        const logs = jsonLog.logs;
-        
-        for (let i = handStart; i >= handEnd; i--) {
-            const message = logs[i].msg;
-            handLines.push(message);
+
+        if (handStart === -1 || handStart > handEnd) {
+            return [];
         }
-        
-        return handLines;
+
+        return logs.slice(handStart, handEnd + 1).map((entry) => entry.msg);
     }
 
     cleanup() {
@@ -990,18 +1037,23 @@ class LogScraper {
                 return;
             }
 
-            // Search through all logs, not just the last 10
-            // Start from the end and work backwards to find the most recent hand
-            for (let i = jsonLog.logs.length - 1; i >= 0; i--) {
-                const message = jsonLog.logs[i].msg;
+            const logs = [...jsonLog.logs].sort((a, b) => {
+                const aTime = Number(a?.created_at) || 0;
+                const bTime = Number(b?.created_at) || 0;
+                return aTime - bTime;
+            });
+
+            // Scan newest-to-oldest for the most recent completed hand.
+            for (let i = logs.length - 1; i >= 0; i--) {
+                const message = logs[i].msg;
                 if (message.includes('ending hand #')) {
-                    self.lastCreatedAt = jsonLog.logs[i].created_at;
+                    self.lastCreatedAt = logs[i].created_at;
                     const number = parseInt(message.split('#')[1].split(' ')[0]);
                     if (number > self.lastHandNumber) {
                         self.lastHandNumber = number;
                         console.log('New hand detected #' + number + ', processing...');
                         if (window.builder) {
-                            window.builder.addHand(jsonLog);
+                            window.builder.addHand({ logs: logs });
                         } else {
                             console.error('Builder not available for hand processing');
                         }
@@ -1025,7 +1077,11 @@ class LogScraper {
             }
             
             if (jsonLog.logs && jsonLog.logs.length > 0) {
-                self.lastCreatedAt = jsonLog.logs[0].created_at;
+                const newestCreatedAt = jsonLog.logs.reduce((latest, entry) => {
+                    const createdAt = Number(entry?.created_at) || 0;
+                    return createdAt > latest ? createdAt : latest;
+                }, 0);
+                self.lastCreatedAt = newestCreatedAt;
             }
         } catch (error) {
             console.error('Error setting initial created at:', error);
@@ -1052,13 +1108,37 @@ class LogScraper {
 }
 
 // Utility functions
+function isExtensionContextInvalid(error) {
+    const message = error?.message || '';
+    return message.includes('Extension context invalidated');
+}
+
+function recoverFromInvalidExtensionContext(error) {
+    if (!isExtensionContextInvalid(error)) {
+        return false;
+    }
+
+    if (!window.__pokernowHudContextRecoveryTriggered) {
+        window.__pokernowHudContextRecoveryTriggered = true;
+        console.warn('Extension context invalidated. Reloading page to reattach content script.');
+        window.location.reload();
+    }
+
+    return true;
+}
+
 async function getStats(aggregator) {
     try {
         const result = await aggregator.getStorageData(['stats']);
         aggregator.stats = result.stats || {};
         aggregator.unpackStats();
+        return true;
     } catch (error) {
+        if (recoverFromInvalidExtensionContext(error)) {
+            return false;
+        }
         console.error('Error getting stats:', error);
+        return false;
     }
 }
 

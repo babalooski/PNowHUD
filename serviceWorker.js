@@ -104,21 +104,23 @@ chrome.runtime.onMessage.addListener(
 		if(request.command == "requestServerAnalysis"){ //all serverside code has been moved to the background script.
 			console.log("=== HAND ANALYSIS STARTED ===");
 			var handLines = request.handLines;
-			var stats = request.stats;
             console.log("Hand lines:", handLines);
-            console.log("Current stats:", stats);
-            
-            try {
-                var newStats = analyze(stats, handLines);
-                console.log("Analysis completed, new stats:", newStats);
-                chrome.storage.local.set({"stats":newStats}, function() {
-                    console.log("Stats saved to storage");
-                });
-                sendResponse({"confirmation": "success"});
-            } catch (error) {
-                console.error("Error in hand analysis:", error);
-                sendResponse({"confirmation": "error", "message": error.message});
-            }
+			chrome.storage.local.get(["stats"], function(result) {
+				var baseStats = result && result.stats ? result.stats : {};
+				console.log("Current stats from storage:", baseStats);
+				try {
+					var newStats = analyze(baseStats, handLines);
+					console.log("Analysis completed, new stats:", newStats);
+					chrome.storage.local.set({"stats":newStats}, function() {
+						console.log("Stats saved to storage");
+						sendResponse({"confirmation": "success"});
+					});
+				} catch (error) {
+					console.error("Error in hand analysis:", error);
+					sendResponse({"confirmation": "error", "message": error.message});
+				}
+			});
+			return true;
 		}
 		/* if(request.command == "getSettings"){
 			sendResponse({"stats":checked});
@@ -158,6 +160,16 @@ function analyze(stats, handLines){
 		return stats; // Return original stats if analysis fails
 	}
 };
+
+function canonicalPlayerName(playerName){
+	if(!playerName){return "";}
+	var normalized = String(playerName).trim();
+	normalized = normalized.replace(/__@__.+$/, "");
+	normalized = normalized.replace(/@.+$/, "");
+	normalized = normalized.replace(/\u00a0/g, " ").replace(/\s+/g, " ");
+	normalized = normalized.replaceAll(" ", "__").replaceAll("(", "--").replaceAll(")", "--");
+	return normalized;
+}
 
 class Hand { //hand class
 	
@@ -279,14 +291,47 @@ class Hand { //hand class
 		}
 		return postflopLines;
 	}
+
+	isPseudoPlayer(playerName){
+		if(!playerName){return true;}
+		var lowered = canonicalPlayerName(playerName).replaceAll("__", " ").toLowerCase();
+		var invalidActors = ["sb", "bb", "button", "dealer", "board:", "you"];
+		return invalidActors.includes(lowered);
+	}
+
+	getActorFromLine(line){
+		if(!line){return null;}
+		var actor = canonicalPlayerName(String(line).split(" ")[0]);
+		if(this.isPseudoPlayer(actor)){return null;}
+		return actor;
+	}
 	
 	getPlayers(handLines, playerNumber){ //returns list of players in the hand, including all those that folded preflop
         var players = [];
-        var relevantLines = handLines.slice(1, 1 + parseInt(playerNumber, 10));
+		var targetCount = parseInt(playerNumber, 10) || 0;
+
+		// Primary: read player names from stack lines when available.
+        var relevantLines = handLines.slice(1, 1 + targetCount);
 		for(var i=0; i<relevantLines.length; i++){
-			var playerName = relevantLines[i].split(" ")[0];
-			players.push(playerName);
+			var actor = this.getActorFromLine(relevantLines[i]);
+			if(actor !== null && !players.includes(actor)){
+				players.push(actor);
+			}
 		}
+
+		// Fallback: if stack lines are missing, infer from action lines.
+		if(players.length === 0){
+			for(var j=1; j<handLines.length; j++){
+				var line = handLines[j];
+				if(line.includes("board:") || line.includes("won")){continue;}
+				var fallbackActor = this.getActorFromLine(line);
+				if(fallbackActor !== null && !players.includes(fallbackActor)){
+					players.push(fallbackActor);
+				}
+				if(targetCount > 0 && players.length >= targetCount){break;}
+			}
+		}
+
 		console.log(players);
         return players;
 	}
@@ -297,6 +342,7 @@ class Hand { //hand class
 		for(var i=0; i<preflopLines.length; i++){
 			var line = preflopLines[i];
             var player = line.split(" ")[0];
+			if(this.isPseudoPlayer(player)){continue;}
             if (line.includes("called")){
                 leveledDict[betLevel].push(player);
 			}
@@ -316,8 +362,13 @@ class Hand { //hand class
 		for(var i=0; i<handLines.length; i++){
 			var line = handLines[i];
 			if(line.includes("folded")){
-				var player = line.split(" ")[0];
-				playersStillIn.splice(playersStillIn.indexOf(player), 1);
+				var player = this.getActorFromLine(line);
+				if(player !== null){
+					var foldedIndex = playersStillIn.indexOf(player);
+					if(foldedIndex !== -1){
+						playersStillIn.splice(foldedIndex, 1);
+					}
+				}
 			}
 			if(line.split(" ")[0] == "board:" || line.includes("showed")){ //"showed" should bring us to street 4
 				if(street <= 4){ //because there can be more than one "showed" at showdown
@@ -344,6 +395,13 @@ class Hand { //hand class
 }
 
 class Calculator{
+
+	isPseudoPlayer(playerName){
+		if(!playerName){return true;}
+		var lowered = canonicalPlayerName(playerName).replaceAll("__", " ").toLowerCase();
+		var invalidActors = ["sb", "bb", "button", "dealer", "board:", "you"];
+		return invalidActors.includes(lowered);
+	}
 	
     extractPlayersFromHandLines(handLines){
         var players = [];
@@ -362,7 +420,8 @@ class Calculator{
             var parts = line.split(' ');
 			console.log('Parts:', parts);
             if(parts.length >= 2){
-                var player = parts[0];
+                var player = canonicalPlayerName(parts[0]);
+				if(this.isPseudoPlayer(player)){continue;}
                 if(!players.includes(player)){
                     players.push(player);
                 }
@@ -459,6 +518,8 @@ class Calculator{
 	}
 	
 	makePath(dataDict, tableSize, player){
+		player = canonicalPlayerName(player);
+		if(player.length === 0){return dataDict || {};}
 		if(dataDict == null){
 			dataDict = {};
 		}
@@ -472,17 +533,23 @@ class Calculator{
 	}
 	
 	getData(dataDict, tableSize, player){ //get list representation of the data from a path of player and . player argument is username, not a Player object
+		player = canonicalPlayerName(player);
+		if(player.length === 0){return [0,0];}
 		dataDict = this.makePath(dataDict, tableSize, player);
 		return dataDict[player][tableSize];
 	}
 	
 	putData(dataDict, tableSize, player, data){
+		player = canonicalPlayerName(player);
+		if(player.length === 0){return dataDict || {};}
 		dataDict = this.makePath(dataDict, tableSize, player);
 		dataDict[player][tableSize] = data;
 		return dataDict;
 	}
 	
 	updateData(dataDict, tableSize, player, dataChange){
+		player = canonicalPlayerName(player);
+		if(player.length === 0){return dataDict || {};}
 		var data = this.getData(dataDict, tableSize, player);
 		data[0]+=dataChange[0];
 		data[1]+=dataChange[1];
@@ -760,8 +827,9 @@ class Calculator{
 			// Extract player name and action
 			var parts = line.split(' ');
 			if(parts.length >= 2){
-				var player = parts[0];
+				var player = canonicalPlayerName(parts[0]);
 				var action = parts[1];
+				if(this.isPseudoPlayer(player)){continue;}
 				
 				console.log("3B checking line:", line, "Player:", player, "Action:", action);
 				
@@ -839,8 +907,9 @@ class Calculator{
             // Extract player name and action
             var parts = line.split(' ');
             if(parts.length >= 2){
-                var player = parts[0];
+                var player = canonicalPlayerName(parts[0]);
                 var action = parts[1];
+				if(this.isPseudoPlayer(player)){continue;}
                 
                 console.log("Checking line:", line, "Player:", player, "Action:", action);
                 
@@ -893,8 +962,9 @@ class Calculator{
             // Extract player name and action
             var parts = line.split(' ');
             if(parts.length >= 2){
-                var player = parts[0];
+                var player = canonicalPlayerName(parts[0]);
                 var action = parts[1];
+				if(this.isPseudoPlayer(player)){continue;}
                 
                 console.log("PFR checking line:", line, "Player:", player, "Action:", action);
                 
@@ -948,8 +1018,9 @@ class Calculator{
             // Extract player name and action
             var parts = line.split(' ');
             if(parts.length >= 2){
-                var player = parts[0];
+                var player = canonicalPlayerName(parts[0]);
                 var action = parts[1];
+				if(this.isPseudoPlayer(player)){continue;}
                 
                 console.log("AF checking line:", line, "Player:", player, "Action:", action);
                 
