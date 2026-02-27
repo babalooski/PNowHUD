@@ -245,7 +245,7 @@ class Panel {
         try {
             const x = parseFloat(player.x.replace('px', ''));
             const y = parseFloat(player.y.replace('px', ''));
-            const yShift = 0.75 * parseFloat(player.height.replace('px', ''));
+            const yShift = 0.80 * parseFloat(player.height.replace('px', ''));
             const finalY = y + yShift + this.getYOffset();
             const finalX = x + this.getXOffset();
 
@@ -545,6 +545,7 @@ class HandBuilder {
     }
 
     removeNameSpecialCharacters(line) {
+        console.log('Line:', line);
         if (line.includes('@')) {
             const player = line.split('"')[1].split('@')[0];
             const cleanPlayer = player.substring(0, player.length - 1);
@@ -562,7 +563,9 @@ class HandBuilder {
         let dealer = '';
         
         for (const line of handLines) {
+            // console.log('Line:', line);
             let processedLine = this.removeNameSpecialCharacters(line);
+            console.log('Processed line:', processedLine);
             let player = processedLine.split(' ')[0].split('"')[1];
             
             if (processedLine.includes('starting hand')) {
@@ -987,10 +990,9 @@ class LogScraper {
                 return;
             }
 
-            const searchDepth = 10;
-            const actualDepth = jsonLog.logs.length <= searchDepth ? jsonLog.logs.length - 1 : searchDepth;
-
-            for (let i = actualDepth; i >= 0; i--) {
+            // Search through all logs, not just the last 10
+            // Start from the end and work backwards to find the most recent hand
+            for (let i = jsonLog.logs.length - 1; i >= 0; i--) {
                 const message = jsonLog.logs[i].msg;
                 if (message.includes('ending hand #')) {
                     self.lastCreatedAt = jsonLog.logs[i].created_at;
@@ -1003,6 +1005,8 @@ class LogScraper {
                         } else {
                             console.error('Builder not available for hand processing');
                         }
+                        // Process only the most recent hand per call
+                        break;
                     }
                 }
             }

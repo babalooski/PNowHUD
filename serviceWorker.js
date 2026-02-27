@@ -358,7 +358,9 @@ class Calculator{
             if(line.includes('board:')) continue;
             
             // Extract player name
+			// console.log('Line:', line);
             var parts = line.split(' ');
+			console.log('Parts:', parts);
             if(parts.length >= 2){
                 var player = parts[0];
                 if(!players.includes(player)){
