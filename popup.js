@@ -5,7 +5,10 @@ $( function() {
 
 $( function() {
     $( "#sortable1, #sortable3, #sortableBin, #sortable2" ).sortable({
-      connectWith: ".connectedSortable"
+      connectWith: ".connectedSortable",
+      stop: function() {
+		document.dispatchEvent(new Event('panel-settings-changed'));
+	  }
     }).disableSelection();
   } );
 
@@ -26,7 +29,7 @@ $( "#backupDiv" ).hide();
 class PanelTab { //im including the checkbox on the data tab cause im too lazy to make a new class for it
 	
 	constructor(){
-		this.stats = ["H", "VPIP", "PFR", "AF", "CB", "2B", "3Ba", "3B", "4B", "FC", "F2B", "F3B", "F3", "WTSD"];
+		this.stats = ["H", "VPIP", "PFR", "AF", "CBF", "2B", "3Ba", "3B", "4B", "FC", "F2B", "F3B", "F3", "WTSD"];
 		this.lists = ["sortable1", "sortable2", "sortable3", "sortableBin"]; //will have to change if more lines are added or smth
 		this.listItems = {};
 		//this.reverseListItems = {};
@@ -52,6 +55,7 @@ class PanelTab { //im including the checkbox on the data tab cause im too lazy t
 					var labelElement = document.getElementById(statName+"BoxLabel")
 					labelElement.innerText = statName;
 				}
+				document.dispatchEvent(new Event('panel-settings-changed'));
 			});
 		})
 	}
@@ -93,6 +97,7 @@ class PanelTab { //im including the checkbox on the data tab cause im too lazy t
 	} */
 	
 	restorePanelSettings(panelSettings){
+		panelSettings = this.migrateLegacyCB(panelSettings);
 		
 		console.log(this.listItems);
 		for(var i=0; i<panelSettings.length; i++){ //for each list
@@ -109,6 +114,22 @@ class PanelTab { //im including the checkbox on the data tab cause im too lazy t
 		this.addCheckListeners();
 		return true;
 		
+	}
+
+	migrateLegacyCB(panelSettings){
+		if(!Array.isArray(panelSettings)){
+			return panelSettings;
+		}
+		return panelSettings.map(function(line){
+			if(!Array.isArray(line)){
+				return line;
+			}
+			return line.map(function(stat){
+				if(stat === "lCB"){return "lCBF";}
+				if(stat === "nCB"){return "nCBF";}
+				return stat;
+			});
+		});
 	}
 
 	extractPanelSettings(){ //generates panelSettingsList from html. pretty messy function. could use reworking
@@ -162,14 +183,12 @@ class Main {
 		this.watchHUDCheckbox();
 		this.watchSetOffsets();
 
-		$('body').on('DOMSubtreeModified', '#tabs-1', function(){
-			console.log(document.getElementById("tabs-1"));
-			if(self.loadComplete){
-				console.log("a");
-				self.saveState();
-				self.updateStats();
-			}
-		});
+			document.addEventListener('panel-settings-changed', function(){
+				if(self.loadComplete){
+					self.saveState();
+					self.updateStats();
+				}
+			});
 		
 	}
 	
@@ -209,7 +228,8 @@ class Main {
 		
 	}
 	
-	updateRecord(settings){
+	updateRecord(){
+		var settings = this.settings;
 		
 		chrome.runtime.sendMessage({"record": settings.recordBox, "command": "updateRecord"}, function(response) {
 			console.log(response.confirmation);
@@ -227,7 +247,7 @@ class Main {
 	
 	recallPanel(){
 		
-		var panelSettings = [[],[],[],["lH", "lVPIP", "lPFR", "lAF", "lCB", "l2B", "l3Ba", "l3B", "l4B", "lFC", "lF2B", "lF3B", "lF3", "lWTSD"]];
+		var panelSettings = [[],[],[],["nH", "nVPIP", "nPFR", "nAF", "nCBF", "n2B", "n3Ba", "n3B", "n4B", "nFC", "nF2B", "nF3B", "nF3", "nWTSD"]];
 		this.panelTab.restorePanelSettings(panelSettings);
 		
 	}
@@ -422,8 +442,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // onClick's logic below:
     recallButton.addEventListener('click', function() {
         console.log("b");
-		main.recallPanel();
+			main.recallPanel();
+			main.saveState();
+			main.updateStats();
     });
+
+	var savePanelButton = document.getElementById('savePanel');
+	savePanelButton.addEventListener('click', function() {
+		main.saveState();
+		main.updateStats();
+	});
 	
 });
 

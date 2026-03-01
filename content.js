@@ -288,6 +288,7 @@ class HUD {
         this.tableDiv = document.body;
         this.players = [];
         this.initialized = false;
+        this.logPollIntervalId = null;
     }
 
     async waitForGameToLoad() {
@@ -297,6 +298,7 @@ class HUD {
             this.tableDiv = this.getTableDiv();
             this.createHUDdiv();
             this.initializePotObserver();
+            this.startLogPolling();
             
             if (this.scraper) {
                 this.scraper.getFullLog();
@@ -347,6 +349,17 @@ class HUD {
         }
     }
 
+    startLogPolling() {
+        if (this.logPollIntervalId !== null) {
+            return;
+        }
+        this.logPollIntervalId = setInterval(() => {
+            if (this.scraper && typeof this.scraper.getLog === 'function') {
+                this.scraper.getLog();
+            }
+        }, 2500);
+    }
+
     initializeHUD() {
         try {
             this.n_seats = 10;
@@ -383,6 +396,7 @@ class HUD {
                     // Update stats from storage first
                     const statsLoaded = await getStats(this.aggregator);
                     if (!statsLoaded) {
+                        this.HUDloop(iteration + 1);
                         return;
                     }
                     this.initializeHUD();
@@ -492,6 +506,8 @@ class HandBuilder {
         try {
             this.currentHand = [''];
             this.currentHandForLogging = [''];
+            this.dealtLine = '';
+            this.stackLines = [];
             
             const lastHandOriginal = this.extractLastHand(jsonLog);
             if (lastHandOriginal.length === 0) {
@@ -611,10 +627,12 @@ class HandBuilder {
                 }
                 
                 if (dealer && dealer !== 'dead button') {
-                    while (translatedStackLines[translatedStackLines.length - 1].split(' ')[0] !== dealer) {
+                    let rotateGuard = translatedStackLines.length;
+                    while (rotateGuard > 0 && translatedStackLines[translatedStackLines.length - 1].split(' ')[0] !== dealer) {
                         const firstElement = translatedStackLines[0];
                         translatedStackLines.shift();
                         translatedStackLines.push(firstElement);
+                        rotateGuard -= 1;
                     }
                 }
                 
@@ -884,7 +902,7 @@ class Aggregator {
     }
 
     getStat(statName, dataDict, tableSize, username) {
-        const percentStats = ['VPIP', 'PFR', '3B', '4B', 'F3', 'WTSD', 'CB', '2B', '3Ba', 'FC', 'F2B', 'F3B'];
+        const percentStats = ['VPIP', 'PFR', '3B', '4B', 'F3', 'WTSD', 'CB', 'CBF', '2B', '3Ba', 'FC', 'F2B', 'F3B'];
         const nonPercentStats = ['AF', 'H'];
         
         const data = this.getData(dataDict, tableSize, username);
@@ -911,7 +929,7 @@ class Aggregator {
     }
 
     allStats() {
-        return ['H', 'VPIP', 'PFR', 'AF', '3B', '4B', 'F3', 'WTSD', 'CB', '2B', '3Ba', 'FC', 'F2B', 'F3B'];
+        return ['H', 'VPIP', 'PFR', 'AF', '3B', '4B', 'F3', 'WTSD', 'CB', 'CBF', '2B', '3Ba', 'FC', 'F2B', 'F3B'];
     }
 
     unpackStats() {
@@ -932,7 +950,10 @@ class Aggregator {
         this.fourBetData = this.stats['4B'];
         this.F3data = this.stats['F3'];
         this.WTSDdata = this.stats['WTSD'];
-        this.CBdata = this.stats['CB'];
+        this.CBFdata = this.stats['CBF'] || this.stats['CB'] || {};
+        this.CBdata = this.CBFdata;
+        this.stats['CBF'] = this.CBFdata;
+        this.stats['CB'] = this.CBFdata;
         this.twoBarrelData = this.stats['2B'];
         this.threeBarrelData = this.stats['3Ba'];
         this.FCdata = this.stats['FC'];
@@ -1150,8 +1171,9 @@ function popup(mylink, windowname) {
 }
 
 // Message listener
-chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-    try {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    (async () => {
+        try {
         if (request.command === 'updateStats2') {
             if (window.settings) {
                 window.settings.statsToShow = request.stats;
@@ -1202,6 +1224,8 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
                     await getStats(window.aggregator);
                 }
                 sendResponse({ confirmation: 'success' });
+            } else {
+                sendResponse({ confirmation: 'cancelled' });
             }
         }
         
@@ -1227,10 +1251,12 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
             }
             sendResponse({ confirmation: 'success' });
         }
-    } catch (error) {
-        console.error('Error handling message:', error);
-        sendResponse({ confirmation: 'error', message: error.message });
-    }
+        } catch (error) {
+            console.error('Error handling message:', error);
+            sendResponse({ confirmation: 'error', message: error.message });
+        }
+    })();
+    return true;
 });
 
 // Initialize the application

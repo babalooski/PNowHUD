@@ -1,7 +1,7 @@
 
 chrome.storage.local.get(["hands"], function(result) {
 	console.log('Value currently is ' + result.hands);
-	var hands = result.hands;
+	var hands = result.hands || [];
 	var historyString = "";
 	for(var i=0; i<hands.length; i++){
 		historyString = historyString + hands[i] + "\n";

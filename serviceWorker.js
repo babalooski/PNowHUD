@@ -20,7 +20,7 @@ chrome.runtime.onInstalled.addListener(function() {
 			}); 
 		}
     }); 	
-	chrome.storage.local.set({"settings": {"panelSettings":[["nH", "nVPIP", "nPFR", "n3B", "nAF"],[],[],["lCB", "l2B", "l3Ba", "l4B", "lFC", "lF2B", "lF3B", "lF3", "lWTSD"]], "recordBox": true, "showingHUD": true, "panelOffset":[0,0]}}, function() { //initialize settings storage
+	chrome.storage.local.set({"settings": {"panelSettings":[["nH", "nVPIP", "nPFR", "n3B", "nAF"],[],[],["nCBF", "n2B", "n3Ba", "n4B", "nFC", "nF2B", "nF3B", "nF3", "nWTSD"]], "recordBox": true, "showingHUD": true, "panelOffset":[0,0]}}, function() { //initialize settings storage
 		console.log("created stats dict");
     });
 	/* chrome.declarativeContent.onPageChanged.removeRules(undefined, function() {
@@ -165,7 +165,6 @@ function canonicalPlayerName(playerName){
 	if(!playerName){return "";}
 	var normalized = String(playerName).trim();
 	normalized = normalized.replace(/__@__.+$/, "");
-	normalized = normalized.replace(/@.+$/, "");
 	normalized = normalized.replace(/\u00a0/g, " ").replace(/\s+/g, " ");
 	normalized = normalized.replaceAll(" ", "__").replaceAll("(", "--").replaceAll(")", "--");
 	return normalized;
@@ -444,14 +443,15 @@ class Calculator{
 		this.fourBetData = this.get4Bdata(hand, this.fourBetData, tableSize);
 		this.F3data = this.getF3data(hand, this.F3data, tableSize);
 		this.WTSDdata = this.getWTSD(hand, this.WTSDdata, tableSize);
-		this.CBdata = this.getCBdata(hand, this.CBdata, tableSize);
+		this.CBFdata = this.getCBdata(hand, this.CBFdata, tableSize);
+		this.CBdata = this.CBFdata;
 		this.twoBarrelData = this.get2Bdata(hand, this.twoBarrelData, tableSize);
 		this.threeBarrelData = this.get3Bardata(hand, this.threeBarrelData, tableSize);
 		this.FCdata = this.getFCdata(hand, this.FCdata, tableSize);
 		this.F2Bdata = this.getF2Bdata(hand, this.F2Bdata, tableSize);
 		this.F3Bdata = this.getF3Bdata(hand, this.F3Bdata, tableSize);
 		
-		this.packStats(this.HandsData, this.VPIPdata, this.PFRdata, this.AFdata, this.threeBetData, this.fourBetData, this.F3data, this.WTSDdata, this.CBdata, this.twoBarrelData, this.threeBarrelData, this.FCdata, this.F2Bdata, this.F3Bdata);
+		this.packStats(this.HandsData, this.VPIPdata, this.PFRdata, this.AFdata, this.threeBetData, this.fourBetData, this.F3data, this.WTSDdata, this.CBFdata, this.twoBarrelData, this.threeBarrelData, this.FCdata, this.F2Bdata, this.F3Bdata);
 		return this.stats;
 		
 		//this.printStats(tableSize, hand.players);
@@ -465,7 +465,7 @@ class Calculator{
 		
 	}
 	
-	packStats(HandsData, VPIPdata, PFRdata, AFdata, threeBetData, fourBetData, F3data, WTSDdata, CBdata, twoBarrelData, threeBarrelData, FCdata, F2Bdata, F3Bdata){
+	packStats(HandsData, VPIPdata, PFRdata, AFdata, threeBetData, fourBetData, F3data, WTSDdata, CBFdata, twoBarrelData, threeBarrelData, FCdata, F2Bdata, F3Bdata){
 		
 		this.stats["H"] = HandsData;
 		this.stats["VPIP"] = VPIPdata;
@@ -475,7 +475,8 @@ class Calculator{
 		this.stats["4B"] = fourBetData;
 		this.stats["F3"] = F3data;
 		this.stats["WTSD"] = WTSDdata;
-		this.stats["CB"] = CBdata;
+		this.stats["CBF"] = CBFdata;
+		this.stats["CB"] = CBFdata;
 		this.stats["2B"] = twoBarrelData;
 		this.stats["3Ba"] = threeBarrelData;
 		this.stats["FC"] = FCdata;
@@ -486,7 +487,7 @@ class Calculator{
 	
 	allStats(){
 	//return {"VPIP":this.VPIPdata, "PFR":this.PFRdata, "AF": this.AFdata, "3B":this.threeBetData, "4B":this.fourBetData, "F3":this.F3data, "WTSD":this.WTSDdata, "CB":this.CBdata, "2B":this.twoBarrelData, "3B":this.threeBarrelData, "FC":this.FCdata, "F2":this.F2Bdata, "F3B":this.F2Bdata};
-		return ["H", "VPIP", "PFR", "AF", "3B", "4B", "F3", "WTSD", "CB", "2B", "3Ba", "FC", "F2B", "F3B"];
+		return ["H", "VPIP", "PFR", "AF", "3B", "4B", "F3", "WTSD", "CB", "CBF", "2B", "3Ba", "FC", "F2B", "F3B"];
 	}
 	
 	unpackStats(){
@@ -508,7 +509,10 @@ class Calculator{
 		this.fourBetData = this.stats["4B"];
 		this.F3data = this.stats["F3"];
 		this.WTSDdata = this.stats["WTSD"];
-		this.CBdata = this.stats["CB"];
+		this.CBFdata = this.stats["CBF"] || this.stats["CB"] || {};
+		this.CBdata = this.CBFdata;
+		this.stats["CBF"] = this.CBFdata;
+		this.stats["CB"] = this.CBFdata;
 		this.twoBarrelData = this.stats["2B"];
 		this.threeBarrelData = this.stats["3Ba"];
 		this.FCdata = this.stats["FC"];

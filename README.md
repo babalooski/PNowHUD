@@ -8,6 +8,7 @@ A comprehensive Chrome extension that tracks and displays poker statistics for a
 - **VPIP (Voluntarily Put In Pot)**: Percentage of hands where a player voluntarily puts money in the pot (calls, bets, or raises)
 - **PFR (Pre-Flop Raise)**: Percentage of hands where a player raises pre-flop
 - **3B (3-Bet)**: Percentage of hands where a player makes a 3-bet pre-flop
+- **CBF (C-bet Frequency)**: Percentage of flop opportunities where the pre-flop aggressor makes a continuation bet
 - **AF (Aggression Factor)**: Post-flop aggression ratio calculated as (Bets + Raises) / Calls
 
 ### Advanced Functionality
